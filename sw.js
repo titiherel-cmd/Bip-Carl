@@ -1,5 +1,5 @@
 // CARL Bip & Chrono - service worker (Network First)
-const CACHE='carl-bip-v1';
+const CACHE='carl-bip-v2';
 const CORE=['./','./index.html','./manifest.json'];
 self.addEventListener('install',e=>{
   self.skipWaiting();

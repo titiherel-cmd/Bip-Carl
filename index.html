@@ -46,6 +46,10 @@ input[type=checkbox]{width:22px;height:22px;accent-color:var(--acc)}
 .step .l2 input{width:58px;padding:6px}
 .step .l2 select{padding:6px;font-size:13px}
 .x{border:0;background:none;color:var(--mut);font-size:22px;cursor:pointer;padding:0 6px}
+input[type=range]{flex:1;min-width:0;width:150px;accent-color:var(--acc)}
+output{min-width:62px;text-align:right;font-weight:600;font-size:14px}
+.dur.rng{flex:1;justify-content:flex-end}
+.hint{color:var(--mut);font-size:12px;padding:0 0 6px}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .hide{display:none}
 h2{font-size:14px;margin:0 0 10px}
@@ -79,16 +83,18 @@ h2{font-size:14px;margin:0 0 10px}
       <div class="dur"><input type="number" id="dm" min="0" max="999" value="5" aria-label="Minutes">min
       <input type="number" id="ds" min="0" max="59" value="0" aria-label="Secondes">s</div></div>
     <div class="row" id="ivRow"><label for="iv">Un bip toutes les</label><div class="dur"><input type="number" id="iv" min="1" max="3600" value="10">s</div></div>
+    <div class="row"><label for="alert">Signal</label>
+      <select id="alert"><option value="snd">Bip</option><option value="vib">Vibration</option><option value="both">Bip + vibration</option></select></div>
+    <div class="hint hide" id="vhint">La vibration n'est pas prise en charge par ce navigateur (par exemple Safari sur iPhone).</div>
     <div class="row" id="sndRow"><label for="snd">Son</label>
       <select id="snd">
         <option value="sine">Bip doux</option><option value="square">Bip net</option><option value="triangle">Bip rond</option>
         <option value="sawtooth">Buzzer</option><option value="double">Double bip</option><option value="triple">Triple bip</option>
       </select></div>
-    <div class="row"><label for="fr">Tonalité</label><div class="dur"><input type="number" id="fr" min="100" max="4000" step="10" value="880">Hz</div></div>
-    <div class="row"><label for="ln">Durée du bip</label><div class="dur"><input type="number" id="ln" min="30" max="1500" step="10" value="150">ms</div></div>
-    <div class="row"><label for="vl">Volume</label><div class="dur"><input type="number" id="vl" min="1" max="100" value="60">%</div></div>
-    <div class="row"><label for="fl">Bips 3-2-1 et alarme finale</label><input type="checkbox" id="fl" checked></div>
-    <div class="row"><label for="vib">Vibration</label><input type="checkbox" id="vib"></div>
+    <div class="row" id="frRow"><label for="fr">Tonalité</label><div class="dur rng"><input type="range" id="fr" min="200" max="2000" step="10" value="880"><output id="fro">880 Hz</output></div></div>
+    <div class="row"><label for="ln">Durée du signal</label><div class="dur rng"><input type="range" id="ln" min="50" max="600" step="10" value="150"><output id="lno">150 ms</output></div></div>
+    <div class="row" id="vlRow"><label for="vl">Volume</label><div class="dur rng"><input type="range" id="vl" min="1" max="100" value="60"><output id="vlo">60 %</output></div></div>
+    <div class="row"><label for="fl">Signal 3-2-1 et alarme finale</label><input type="checkbox" id="fl" checked></div>
     <div class="row"><span></span><button class="btn" id="test">Tester le son</button></div>
   </div>
 </main>
@@ -97,7 +103,7 @@ const $=id=>document.getElementById(id);
 const SNDS=[['sine','Bip doux'],['square','Bip net'],['triangle','Bip rond'],['sawtooth','Buzzer'],['double','Double bip'],['triple','Triple bip']];
 let mode='interval',running=false,t0=0,acc=0,last=0,ctx=null,timer=null,lock=null,finished=false,seqIdx=-1,seqK=0;
 let steps=[{n:'Effort',m:0,s:30,i:10,snd:'sine'},{n:'Repos',m:0,s:10,i:0,snd:'triangle'}];
-const keys=['iv','snd','fr','ln','vl','fl','vib','dm','ds','rd'];
+const keys=['iv','snd','fr','ln','vl','fl','alert','dm','ds','rd'];
 try{const S=JSON.parse(localStorage.getItem('carlbip')||'{}');
   keys.forEach(k=>{const el=$(k);if(S[k]!==undefined){if(el.type==='checkbox')el.checked=S[k];else el.value=S[k]}});
   if(Array.isArray(S.steps)&&S.steps.length)steps=S.steps}catch(e){}
@@ -123,11 +129,15 @@ function audio(){if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext
 function tone(at,type,f,d,v){const c=ctx,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.value=f;v=Math.max(v,0.001);
   g.gain.setValueAtTime(0.0001,at);g.gain.exponentialRampToValueAtTime(v,at+0.01);g.gain.setValueAtTime(v,at+Math.max(d-0.03,0.011));g.gain.exponentialRampToValueAtTime(0.0001,at+d);
   o.connect(g).connect(c.destination);o.start(at);o.stop(at+d+0.02)}
-function beep(o={}){const c=audio(),s=o.snd||$('snd').value,f=+(o.fr||$('fr').value)||880,d=(o.ln||+$('ln').value||150)/1000,v=($('vl').value/100)*0.6,t=c.currentTime+0.01;
-  if(s==='double'||s==='triple'){const n=s==='double'?2:3;for(let i=0;i<n;i++)tone(t+i*(d+0.07),'sine',f,d,v)}else tone(t,s,f,d,v);
-  flash();if($('vib').checked&&navigator.vibrate)navigator.vibrate(Math.min(d*1000,300))}
+const useSnd=()=>$('alert').value!=='vib',useVib=()=>$('alert').value!=='snd';
+function buzz(p){try{if(useVib()&&navigator.vibrate)navigator.vibrate(p)}catch(e){}}
+function beep(o={}){const s=o.snd||$('snd').value,d=(o.ln||+$('ln').value||150)/1000;
+  if(useSnd()){const c=audio(),f=+(o.fr||$('fr').value)||880,v=($('vl').value/100)*0.6,t=c.currentTime+0.01;
+    if(s==='double'||s==='triple'){const n=s==='double'?2:3;for(let i=0;i<n;i++)tone(t+i*(d+0.07),'sine',f,d,v)}else tone(t,s,f,d,v)}
+  const n=s==='double'?2:s==='triple'?3:1,ms=Math.min(Math.max(d*1000,60),600),pat=[];for(let i=0;i<n;i++){if(i)pat.push(70);pat.push(ms)}
+  buzz(pat);flash()}
 function flash(){const d=$('dial');d.classList.add('pulse');setTimeout(()=>d.classList.remove('pulse'),120)}
-function alarm(){const c=audio(),f=(+$('fr').value||880)*1.25,v=($('vl').value/100)*0.6,t=c.currentTime+0.01;for(let i=0;i<4;i++)tone(t+i*0.35,'square',f,0.25,v);flash();if($('vib').checked&&navigator.vibrate)navigator.vibrate([300,100,300,100,300])}
+function alarm(){if(useSnd()){const c=audio(),f=(+$('fr').value||880)*1.25,v=($('vl').value/100)*0.6,t=c.currentTime+0.01;for(let i=0;i<4;i++)tone(t+i*0.35,'square',f,0.25,v)}flash();buzz([300,100,300,100,300,100,300])}
 
 const fmt=ms=>{ms=Math.max(0,ms);const t=Math.floor(ms/100),d=t%10,s=Math.floor(t/10)%60,m=Math.floor(t/600);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+d};
 const total=()=>((+$('dm').value||0)*60+(+$('ds').value||0))*1000;
@@ -171,8 +181,10 @@ function reset(){running=false;clearInterval(timer);acc=0;last=0;seqIdx=-1;seqK=
   if(mode==='down'){$('time').textContent=fmt(total());$('sub').textContent=`Bip toutes les ${$('iv').value} s, alarme à zéro`}
   else if(mode==='seq'){const P=plan(),t=P.reduce((a,p)=>a+dur(p),0);$('time').textContent=fmt(dur(P[0]));$('sub').textContent=`${steps.length} étape(s), ${P[0].R} tour(s), total ${fmt(t).slice(0,5)}`}
   else{$('time').textContent='00:00.0';$('sub').textContent=mode==='chrono'?`Bip toutes les ${$('iv').value} s`:`Un bip toutes les ${$('iv').value} s`}}
-function layout(){$('durRow').classList.toggle('hide',mode!=='down');$('seqCard').classList.toggle('hide',mode!=='seq');
-  $('ivRow').classList.toggle('hide',mode==='seq');$('sndRow').classList.toggle('hide',mode==='seq')}
+function labels(){$('fro').textContent=$('fr').value+' Hz';$('lno').textContent=$('ln').value+' ms';$('vlo').textContent=$('vl').value+' %'}
+function vhint(){$('vhint').classList.toggle('hide',!($('alert').value!=='snd'&&!navigator.vibrate))}
+function layout(){const v=$('alert').value==='vib';$('frRow').classList.toggle('hide',v);$('vlRow').classList.toggle('hide',v);$('durRow').classList.toggle('hide',mode!=='down');$('seqCard').classList.toggle('hide',mode!=='seq');
+  $('ivRow').classList.toggle('hide',mode==='seq');$('sndRow').classList.toggle('hide',mode==='seq'||v)}
 
 $('go').onclick=()=>running?stop():start();
 $('rst').onclick=reset;
@@ -180,9 +192,9 @@ $('test').onclick=()=>beep();
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
   mode=b.dataset.m;layout();reset()});
-keys.forEach(k=>$(k).addEventListener('input',()=>{save();idle()}));
+keys.forEach(k=>$(k).addEventListener('input',()=>{save();labels();layout();vhint();idle()}));
 document.addEventListener('visibilitychange',()=>{if(running&&!document.hidden)wake(true)});
-renderSteps();layout();reset();
+renderSteps();labels();vhint();layout();reset();
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script>
 </body>
