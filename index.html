@@ -62,8 +62,7 @@ h2{font-size:14px;margin:0 0 10px}
     <h1>Bip &amp; Chrono<small>Bips, chrono, minuteur, séquences</small></h1>
   </header>
   <div class="tabs" role="tablist">
-    <button role="tab" data-m="interval" aria-selected="true">Bips</button>
-    <button role="tab" data-m="chrono" aria-selected="false">Chrono</button>
+    <button role="tab" data-m="chrono" aria-selected="true">Chrono</button>
     <button role="tab" data-m="down" aria-selected="false">Minuteur</button>
     <button role="tab" data-m="seq" aria-selected="false">Séquence</button>
   </div>
@@ -101,7 +100,7 @@ h2{font-size:14px;margin:0 0 10px}
 <script>
 const $=id=>document.getElementById(id);
 const SNDS=[['sine','Bip doux'],['square','Bip net'],['triangle','Bip rond'],['sawtooth','Buzzer'],['double','Double bip'],['triple','Triple bip']];
-let mode='interval',running=false,t0=0,acc=0,last=0,ctx=null,timer=null,lock=null,finished=false,seqIdx=-1,seqK=0;
+let mode='chrono',running=false,t0=0,acc=0,last=0,ctx=null,timer=null,lock=null,finished=false,seqIdx=-1,seqK=0;
 let steps=[{n:'Effort',m:0,s:30,i:10,snd:'sine'},{n:'Repos',m:0,s:10,i:0,snd:'triangle'}];
 const keys=['iv','snd','fr','ln','vl','fl','alert','dm','ds','rd'];
 try{const S=JSON.parse(localStorage.getItem('carlbip')||'{}');
@@ -180,7 +179,7 @@ function idle(){if(running||acc>0)return;reset()}
 function reset(){running=false;clearInterval(timer);acc=0;last=0;seqIdx=-1;seqK=0;finished=false;tick.n=null;wake(false);$('go').textContent='Démarrer';
   if(mode==='down'){$('time').textContent=fmt(total());$('sub').textContent=`Bip toutes les ${$('iv').value} s, alarme à zéro`}
   else if(mode==='seq'){const P=plan(),t=P.reduce((a,p)=>a+dur(p),0);$('time').textContent=fmt(dur(P[0]));$('sub').textContent=`${steps.length} étape(s), ${P[0].R} tour(s), total ${fmt(t).slice(0,5)}`}
-  else{$('time').textContent='00:00.0';$('sub').textContent=mode==='chrono'?`Bip toutes les ${$('iv').value} s`:`Un bip toutes les ${$('iv').value} s`}}
+  else{$('time').textContent='00:00.0';$('sub').textContent=`Un signal toutes les ${$('iv').value} s`}}
 function labels(){$('fro').textContent=$('fr').value+' Hz';$('lno').textContent=$('ln').value+' ms';$('vlo').textContent=$('vl').value+' %'}
 function vhint(){$('vhint').classList.toggle('hide',!($('alert').value!=='snd'&&!navigator.vibrate))}
 function layout(){const v=$('alert').value==='vib';$('frRow').classList.toggle('hide',v);$('vlRow').classList.toggle('hide',v);$('durRow').classList.toggle('hide',mode!=='down');$('seqCard').classList.toggle('hide',mode!=='seq');
